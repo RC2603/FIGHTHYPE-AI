@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIGHTHYPE AI - Free Boxing Analysis Tool</title>
+    <meta name="description" content="Upload your boxing video and get AI-powered analysis with power scores, strike counts, and shareable highlight reels.">
+    <meta name="keywords" content="boxing analysis, fight training, AI boxing, punch tracking, boxing technology">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥊</text></svg>">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@300;500;700&family=Oswald:wght@500;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Open Graph for Social Sharing -->
+    <meta property="og:title" content="FIGHTHYPE AI - Free Boxing Analysis">
+    <meta property="og:description" content="Get AI-powered boxing analysis of your training videos.">
+    <meta property="og:image" content="https://fighthype.ai/preview.jpg">
+    <meta property="og:url" content="https://fighthype.ai">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- PWA Support -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#00ff9d">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loader-ring"></div>
+            <p class="loading-text">Loading FIGHTHYPE AI...</p>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <div class="logo">
+            <span class="logo-icon">🥊</span>
+            <div>
+                <h1>FIGHTHYPE</h1>
+                <p class="logo-subtitle">AI BOXING ANALYSIS</p>
+            </div>
+        </div>
+        <div class="nav-actions">
+            <button id="sound-toggle" class="sound-toggle">🔊 SOUND</button>
+            <button onclick="showCommunity()" class="nav-btn">COMMUNITY</button>
+            <button onclick="resetApp()" class="nav-btn">NEW SESSION</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Upload Section -->
+        <section id="upload-view" class="view active">
+            <div class="hero-section">
+                <h2>ANALYZE YOUR BOXING WITH AI</h2>
+                <p class="subtitle">Upload your training video • Get instant analysis • Share your highlights</p>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Power Scoring</h3>
+                        <p>Measure punch power with AI</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎯</div>
+                        <h3>Strike Tracking</h3>
+                        <p>Count every punch automatically</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>Performance Stats</h3>
+                        <p>Detailed combat analytics</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🌐</div>
+                        <h3>Community</h3>
+                        <p>Share & view others' highlights</p>
+                    </div>
+                </div>
+
+                <div class="upload-container">
+                    <div class="upload-card" id="drop-zone">
+                        <div class="upload-icon">📤</div>
+                        <h3>UPLOAD YOUR TRAINING VIDEO</h3>
+                        <p>Drag & drop MP4, MOV, or WEBM file</p>
+                        <p class="file-size-note">Max 100MB • 5 minutes max</p>
+                        
+                        <label for="file-input" class="upload-btn">
+                            CHOOSE VIDEO FILE
+                            <input type="file" id="file-input" accept="video/*" hidden>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="contest-banner">
+                    <div class="contest-content">
+                        <span class="contest-badge">🏆 WEEKLY CHALLENGE</span>
+                        <h4>Best Highlight Reel Wins Boxing Gear!</h4>
+                        <p>Share your analysis with #FIGHTHYPEChallenge to enter</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Processing Section -->
+        <section id="processing-view" class="view">
+            <div class="processing-container">
+                <div class="ai-heading">
+                    <h2>AI ANALYSIS IN PROGRESS</h2>
+                    <p class="ai-subtitle">Your combat data is being processed</p>
+                </div>
+                
+                <div class="loader-ring large"></div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p class="progress-text" id="progress-text">Initializing AI engine...</p>
+                </div>
+                
+                <div class="processing-features">
+                    <div class="processing-step">
+                        <span class="step-icon">🔍</span>
+                        <p>Frame extraction</p>
+                    </div>
+                    <div class="processing-step">
+                        <span class="step-icon">🤖</span>
+                        <p>Motion detection</p>
+                    </div>
+                    <div class="processing-step">
+                        <span class="step-icon">📊</span>
+                        <p>Data analysis</p>
+                    </div>
+                    <div class="processing-step">
+                        <span class="step-icon">🎬</span>
+                        <p>Reel generation</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Editor Section -->
+        <section id="editor-view" class="view">
+            <div class="editor-layout">
+                <!-- Video Panel -->
+                <div class="video-panel">
+                    <div class="video-container" id="video-stage">
+                        <video id="main-video" playsinline loop></video>
+                        
+                        <!-- Analytics Overlay -->
+                        <div class="analytics-overlay">
+                            <div class="analytics-grid"></div>
+                            <div class="scan-line"></div>
+                            
+                            <!-- Hit Zones -->
+                            <div class="hit-zone" style="top: 30%; left: 25%;"></div>
+                            <div class="hit-zone" style="top: 35%; right: 25%;"></div>
+                            
+                            <!-- Robot Sparring Partner -->
+                            <div class="robot-sparring" id="robot-overlay">
+                                <div class="robot-body">
+                                    <div class="robot-head">
+                                        <div class="robot-eye left"></div>
+                                        <div class="robot-eye right"></div>
+                                    </div>
+                                    <div class="robot-arm left" id="robot-arm-left"></div>
+                                    <div class="robot-arm right" id="robot-arm-right"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- HUD Stats -->
+                            <div class="hud-container top-left">
+                                <div class="hud-label">TOTAL STRIKES</div>
+                                <div class="hud-value" id="hud-punches">0</div>
+                            </div>
+                            
+                            <div class="hud-container top-right">
+                                <div class="hud-label">STRIKE VELOCITY</div>
+                                <div class="hud-value" id="hud-speed">0 <span class="hud-unit">KM/H</span></div>
+                            </div>
+                            
+                            <div class="hud-container bottom-right">
+                                <div class="hud-label">POWER LEVEL</div>
+                                <div class="hud-value power" id="hud-power">0%</div>
+                            </div>
+                            
+                            <div class="hud-container bottom-left">
+                                <div class="hud-label">COMBO CHAIN</div>
+                                <div class="hud-value combo" id="hud-combo">x1</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Video Controls -->
+                        <div class="video-controls">
+                            <button onclick="togglePlay()" class="control-btn" id="play-btn">⏵</button>
+                            <button onclick="restartVideo()" class="control-btn" id="restart-btn">↺</button>
+                            <button onclick="toggleMute()" class="control-btn" id="mute-btn">🔊</button>
+                            <button onclick="toggleRobot()" class="control-btn" id="robot-btn">🤖</button>
+                            <button onclick="toggleHud()" class="control-btn active" id="hud-btn">📊</button>
+                            <button onclick="toggleFit()" class="control-btn" id="fit-btn">⛶</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Stats Panel -->
+                <div class="stats-panel">
+                    <div class="stats-header">
+                        <h3>COMBAT ANALYSIS REPORT</h3>
+                        <p class="session-id" id="session-id">SESSION #---</p>
+                    </div>
+                    
+                    <div class="stats-content">
+                        <!-- Training Mode Selector -->
+                        <div class="mode-selector">
+                            <h4>TRAINING MODE</h4>
+                            <div class="mode-buttons">
+                                <button class="mode-btn active" data-mode="shadow">Shadow</button>
+                                <button class="mode-btn" data-mode="bag">Bag Work</button>
+                                <button class="mode-btn" data-mode="pads">Pad Work</button>
+                                <button class="mode-btn" data-mode="spar">Sparring</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Power Meter -->
+                        <div class="power-card">
+                            <h4>POWER ANALYSIS</h4>
+                            <div class="power-meter">
+                                <div class="power-labels">
+                                    <span>CURRENT POWER</span>
+                                    <span id="current-power-value">0%</span>
+                                </div>
+                                <div class="power-track">
+                                    <div class="power-fill" id="power-fill"></div>
+                                    <div class="power-indicator" id="power-indicator"></div>
+                                </div>
+                                <div class="power-stats">
+                                    <div class="power-stat">
+                                        <small>Current</small>
+                                        <strong id="current-power">0</strong>
+                                    </div>
+                                    <div class="power-stat">
+                                        <small>Peak</small>
+                                        <strong id="peak-power">0</strong>
+                                    </div>
+                                    <div class="power-stat">
+                                        <small>Avg</small>
+                                        <strong id="avg-power">0</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Performance Stats -->
+                        <div class="performance-card">
+                            <h4>PERFORMANCE METRICS</h4>
+                            <div class="metric-grid">
+                                <div class="metric">
+                                    <div class="metric-label">Total Strikes</div>
+                                    <div class="metric-value" id="total-strikes">0</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Strike Speed</div>
+                                    <div class="metric-value" id="strike-speed">0 <small>KM/H</small></div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Accuracy</div>
+                                    <div class="metric-value" id="strike-accuracy">0%</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Combo Max</div>
+                                    <div class="metric-value" id="max-combo">x0</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- AI Coach Insights -->
+                        <div class="insights-card">
+                            <h4>AI COACH INSIGHTS</h4>
+                            <div class="insights-list">
+                                <div class="insight">
+                                    <span class="insight-label">Defense Rating</span>
+                                    <span class="insight-value" id="defense-rating">0%</span>
+                                </div>
+                                <div class="insight">
+                                    <span class="insight-label">Reaction Time</span>
+                                    <span class="insight-value" id="reaction-time">0.0s</span>
+                                </div>
+                                <div class="insight">
+                                    <span class="insight-label">Stamina</span>
+                                    <span class="insight-value" id="stamina">100%</span>
+                                </div>
+                                <div class="insight">
+                                    <span class="insight-label">Intensity</span>
+                                    <span class="insight-value" id="intensity">Low</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Contest & Share Section -->
+                        <div class="share-card">
+                            <div class="contest-info">
+                                <h4>🏆 WEEKLY CHALLENGE</h4>
+                                <p>Share your highlight reel with <strong>#FIGHTHYPEChallenge</strong></p>
+                                <p class="contest-detail">Best reel wins boxing gear every week!</p>
+                            </div>
+                            
+                            <div class="share-buttons">
+                                <button onclick="generateHighlight()" class="share-btn highlight">
+                                    🎬 GENERATE HIGHLIGHT REEL
+                                </button>
+                                <button onclick="downloadImage()" class="share-btn image">
+                                    📸 DOWNLOAD SHARE IMAGE
+                                </button>
+                                <button onclick="shareToCommunity()" class="share-btn community">
+                                    🌐 SHARE TO COMMUNITY
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Community View -->
+        <section id="community-view" class="view">
+            <div class="community-container">
+                <div class="community-header">
+                    <h2>FIGHTHYPE COMMUNITY</h2>
+                    <p>Watch highlights shared by other fighters</p>
+                    <button onclick="switchView('upload')" class="nav-btn back-btn">← BACK TO ANALYZE</button>
+                </div>
+                
+                <div class="community-grid" id="community-grid">
+                    <!-- Community highlights will be loaded here -->
+                    <div class="loading-community">
+                        <div class="loader-ring"></div>
+                        <p>Loading community highlights...</p>
+                    </div>
+                </div>
+                
+                <div class="refresh-section">
+                    <button onclick="loadCommunityHighlights()" class="refresh-btn">
+                        🔄 REFRESH COMMUNITY
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Share Modal -->
+    <div id="share-modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">×</button>
+            <h2>SHARE YOUR HIGHLIGHT</h2>
+            
+            <div class="share-preview" id="share-preview">
+                <!-- Preview will be inserted here -->
+            </div>
+            
+            <div class="share-instructions">
+                <h4>📱 How to Enter Contest:</h4>
+                <ol>
+                    <li>Download your highlight image/video</li>
+                    <li>Post on Instagram, TikTok, or Twitter</li>
+                    <li>Use hashtag <strong>#FIGHTHYPEChallenge</strong></li>
+                    <li>Tag <strong>@FightHypeAI</strong> (if possible)</li>
+                </ol>
+            </div>
+            
+            <div class="platform-buttons">
+                <button onclick="shareToInstagram()" class="platform-btn instagram">
+                    📷 Instagram
+                </button>
+                <button onclick="shareToTikTok()" class="platform-btn tiktok">
+                    🎵 TikTok
+                </button>
+                <button onclick="shareToTwitter()" class="platform-btn twitter">
+                    🐦 Twitter
+                </button>
+                <button onclick="shareToCommunity()" class="platform-btn community">
+                    🌐 Community
+                </button>
+            </div>
+            
+            <div class="contest-reminder">
+                <p>🎁 <strong>Weekly Prize:</strong> Professional Boxing Gloves</p>
+                <p>⏰ <strong>Deadline:</strong> Every Sunday at 11:59 PM EST</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+    
+    <!-- Simple Analytics (Privacy-friendly) -->
+    <script>
+        // Basic analytics to track usage (no personal data)
+        window.addEventListener('load', function() {
+            const sessionStart = Date.now();
+            localStorage.setItem('last_visit', new Date().toISOString());
+            
+            // Count visits
+            let visits = parseInt(localStorage.getItem('total_visits') || '0');
+            visits++;
+            localStorage.setItem('total_visits', visits.toString());
+        });
+    </script>
+</body>
+</html>
