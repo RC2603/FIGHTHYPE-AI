@@ -37,13 +37,18 @@ const APP_STATE = {
     contestEntries: 0,
     
     // Video state
-    videoErrorOccurred: false
+    videoErrorOccurred: false,
+    
+    // Share data
+    shareLinks: {},
+    currentHighlight: null
 };
 
 // ===== SIMPLE DATABASE (LocalStorage) =====
 const DB = {
     COMMUNITY_KEY: 'fighthype_community',
     SESSIONS_KEY: 'fighthype_sessions',
+    SHARE_LINKS_KEY: 'fighthype_share_links',
     
     saveHighlight: function(highlight) {
         try {
@@ -71,6 +76,33 @@ const DB = {
             console.error('Error getting highlights:', error);
             return [];
         }
+    },
+    
+    saveShareLink: function(shareId, data) {
+        try {
+            const links = this.getShareLinks();
+            links[shareId] = data;
+            localStorage.setItem(this.SHARE_LINKS_KEY, JSON.stringify(links));
+            return true;
+        } catch (error) {
+            console.error('Error saving share link:', error);
+            return false;
+        }
+    },
+    
+    getShareLinks: function() {
+        try {
+            const data = localStorage.getItem(this.SHARE_LINKS_KEY);
+            return data ? JSON.parse(data) : {};
+        } catch (error) {
+            console.error('Error getting share links:', error);
+            return {};
+        }
+    },
+    
+    getShareLink: function(shareId) {
+        const links = this.getShareLinks();
+        return links[shareId] || null;
     },
     
     saveSession: function(sessionData) {
@@ -167,7 +199,10 @@ const elements = {
     toast: document.getElementById('toast'),
     
     // Loading screen
-    loadingScreen: document.getElementById('loading-screen')
+    loadingScreen: document.getElementById('loading-screen'),
+    
+    // Error message element (we'll create it)
+    errorMessage: null
 };
 
 // ===== INITIALIZATION =====
@@ -177,12 +212,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initializeApp() {
+    // Create error message element if it doesn't exist
+    createErrorMessageElement();
+    
     // Clear any cached video URLs to prevent browser issues
     DB.clearVideoCache();
     
     // Initialize from localStorage
     APP_STATE.contestEntries = parseInt(localStorage.getItem('fh_contest_entries') || '0');
     APP_STATE.communityHighlights = DB.getHighlights();
+    APP_STATE.shareLinks = DB.getShareLinks();
     
     // Setup event listeners
     setupEventListeners();
@@ -193,10 +232,20 @@ function initializeApp() {
     // Generate initial session ID
     generateSessionId();
     
+    // Check for share link in URL
+    checkForShareLink();
+    
     // Load community highlights if on community view
     if (window.location.hash === '#community') {
         showCommunity();
     }
+}
+
+function createErrorMessageElement() {
+    elements.errorMessage = document.createElement('div');
+    elements.errorMessage.className = 'error-message';
+    elements.errorMessage.id = 'error-message';
+    document.body.appendChild(elements.errorMessage);
 }
 
 function hideLoadingScreen() {
@@ -231,6 +280,9 @@ function setupEventListeners() {
     
     // Sound toggle
     document.getElementById('sound-toggle').addEventListener('click', toggleSound);
+    
+    // Handle view switching (stop video when leaving editor)
+    document.addEventListener('viewChanged', handleViewChange);
 }
 
 function setupModeButtons() {
@@ -247,6 +299,11 @@ function setupModeButtons() {
 
 // ===== VIEW MANAGEMENT =====
 function switchView(viewName) {
+    // Pause video if leaving editor view
+    if (APP_STATE.currentView === 'editor' && viewName !== 'editor') {
+        pauseVideo();
+    }
+    
     // Hide all views
     Object.values(elements.views).forEach(view => {
         if (view) view.classList.remove('active');
@@ -257,6 +314,11 @@ function switchView(viewName) {
         elements.views[viewName].classList.add('active');
         APP_STATE.currentView = viewName;
         
+        // Trigger view change event
+        document.dispatchEvent(new CustomEvent('viewChanged', { 
+            detail: { from: APP_STATE.currentView, to: viewName }
+        }));
+        
         // Load community highlights if switching to community view
         if (viewName === 'community') {
             loadCommunityHighlights();
@@ -264,8 +326,43 @@ function switchView(viewName) {
     }
 }
 
+function handleViewChange(event) {
+    const { to } = event.detail;
+    
+    // If going to community or upload, ensure video is paused
+    if (to !== 'editor') {
+        pauseVideo();
+    }
+}
+
+function pauseVideo() {
+    if (elements.video && !elements.video.paused) {
+        elements.video.pause();
+        APP_STATE.isPlaying = false;
+        elements.playBtn.textContent = "⏵";
+    }
+}
+
 function showCommunity() {
     switchView('community');
+}
+
+// ===== ERROR HANDLING FUNCTIONS =====
+function showError(message, duration = 4000) {
+    if (elements.errorMessage) {
+        elements.errorMessage.textContent = message;
+        elements.errorMessage.classList.add('show');
+        
+        setTimeout(() => {
+            elements.errorMessage.classList.remove('show');
+        }, duration);
+    }
+}
+
+function clearError() {
+    if (elements.errorMessage) {
+        elements.errorMessage.classList.remove('show');
+    }
 }
 
 // ===== FILE HANDLING & VIDEO FIXES =====
@@ -293,17 +390,21 @@ function handleFileDrop(event) {
 }
 
 function processFile(file) {
+    // Clear any previous errors
+    clearError();
+    
     // Reset error flag
     APP_STATE.videoErrorOccurred = false;
     
-    // Validate file
-    if (!file.type.startsWith('video/')) {
-        showToast('Please upload a video file (MP4, MOV, WEBM)');
+    // Validate file type
+    const validTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'];
+    if (!validTypes.some(type => file.type.includes(type.replace('video/', '')))) {
+        showError('Please upload MP4, MOV, or WEBM format');
         return;
     }
     
     if (file.size > 100 * 1024 * 1024) { // 100MB limit
-        showToast('File too large. Max 100MB');
+        showError('File too large. Max 100MB');
         return;
     }
     
@@ -324,7 +425,7 @@ function processFile(file) {
         startProcessing();
     } catch (error) {
         console.error('Error creating video URL:', error);
-        showToast('Error processing video. Please try another file.');
+        showError('Error processing video. Please try another file.');
         switchView('upload');
     }
 }
@@ -367,17 +468,20 @@ function handleVideoError(event) {
                     console.log('Video playback aborted');
                     break;
                 case MediaError.MEDIA_ERR_NETWORK:
-                    showToast('Network error. Please check your connection.');
+                    showError('Network error. Please check your connection.');
                     break;
                 case MediaError.MEDIA_ERR_DECODE:
-                    showToast('Video format not supported. Please try MP4 format.');
+                    showError('Video format not supported. Please try MP4 format.');
                     break;
                 case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                    showToast('Video format not supported. Please try MP4 format.');
+                    showError('Video format not supported. Please try MP4 format.');
                     break;
                 default:
-                    showToast('Error playing video. Please try another file.');
+                    showError('Error playing video. Please try another file.');
             }
+        } else if (elements.video.src && elements.video.src.includes('blob:')) {
+            // This might be a CORS issue with blob URL
+            console.log('Possible CORS issue with blob URL');
         }
     }
 }
@@ -402,7 +506,7 @@ function restartVideo() {
         elements.video.currentTime = 0;
         elements.video.play().catch(e => {
             console.log("Play error after restart:", e);
-            // Don't show toast for autoplay errors
+            // Don't show error for autoplay errors
             if (e.name !== 'NotAllowedError') {
                 showToast('Click play to start video');
             }
@@ -485,9 +589,14 @@ function finishProcessing() {
         
         // Add crossorigin attribute to handle CORS issues
         elements.video.crossOrigin = 'anonymous';
+        
+        // Add event listener for when video is ready
+        elements.video.addEventListener('loadedmetadata', () => {
+            console.log('Video metadata loaded, duration:', elements.video.duration);
+        });
     } else {
         console.error('No video URL available');
-        showToast('Video URL not available. Please upload again.');
+        showError('Video URL not available. Please upload again.');
         switchView('upload');
         return;
     }
@@ -500,7 +609,7 @@ function finishProcessing() {
         if (elements.video.src) {
             elements.video.play().catch(e => {
                 console.log("Autoplay blocked, showing play button:", e);
-                // Don't show toast for autoplay errors - just update button
+                // Don't show error for autoplay errors
                 elements.playBtn.textContent = "⏵";
             });
         }
@@ -765,8 +874,10 @@ function toggleSound() {
     const soundBtn = document.getElementById('sound-toggle');
     if (APP_STATE.isMuted) {
         soundBtn.textContent = "🔇 MUTED";
+        soundBtn.style.color = "#ff0055";
     } else {
         soundBtn.textContent = "🔊 SOUND";
+        soundBtn.style.color = "";
     }
 }
 
@@ -780,9 +891,9 @@ function togglePlay() {
     if (elements.video.paused) {
         elements.video.play().catch(e => {
             console.log("Play error:", e);
-            // Don't show toast for autoplay errors
+            // Don't show error for autoplay errors
             if (e.name !== 'NotAllowedError') {
-                showToast('Error playing video. Please try again.');
+                showError('Error playing video. Please try again.');
             }
         });
         elements.playBtn.textContent = "⏸";
@@ -798,8 +909,10 @@ function toggleMute() {
     
     if (APP_STATE.isMuted) {
         elements.muteBtn.textContent = "🔇";
+        elements.muteBtn.style.color = "#ff0055";
     } else {
         elements.muteBtn.textContent = "🔊";
+        elements.muteBtn.style.color = "";
     }
 }
 
@@ -835,6 +948,208 @@ function toggleFit() {
         elements.video.style.objectFit = 'contain';
         elements.fitBtn.textContent = "⛶";
     }
+}
+
+// ===== SHARE LINK SYSTEM =====
+function generateShareLink() {
+    // Create a unique share ID
+    const shareId = 'SH' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    
+    // Create share data
+    const shareData = {
+        id: shareId,
+        sessionId: APP_STATE.sessionId,
+        timestamp: Date.now(),
+        stats: {
+            power: Math.round(APP_STATE.currentPower),
+            strikes: APP_STATE.punchCount,
+            combo: APP_STATE.comboCount,
+            maxCombo: APP_STATE.maxCombo,
+            accuracy: APP_STATE.strikeAccuracy,
+            speed: elements.hudSpeed.textContent,
+            mode: APP_STATE.trainingMode,
+            peakPower: APP_STATE.peakPower,
+            avgPower: APP_STATE.avgPower,
+            defenseRating: APP_STATE.defenseRating,
+            reactionTime: APP_STATE.reactionTime,
+            stamina: APP_STATE.stamina,
+            intensity: APP_STATE.intensity
+        },
+        videoData: APP_STATE.videoUrl ? {
+            hasVideo: true,
+            // Note: We can't share blob URLs, so we'll use the file if available
+            fileName: APP_STATE.videoFile ? APP_STATE.videoFile.name : 'boxing-training.mp4'
+        } : { hasVideo: false }
+    };
+    
+    // Save to localStorage
+    DB.saveShareLink(shareId, shareData);
+    
+    // Generate the shareable link
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = `${baseUrl}#share=${shareId}`;
+    
+    return {
+        url: shareUrl,
+        id: shareId,
+        data: shareData
+    };
+}
+
+function showShareLinkModal() {
+    // Generate share link
+    const shareInfo = generateShareLink();
+    APP_STATE.currentHighlight = shareInfo;
+    
+    // Update modal content
+    elements.sharePreview.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🥊</div>
+            <h3 style="margin-bottom: 10px; font-family: var(--font-heading);">Your FIGHTHYPE Highlight</h3>
+            <p style="color: #888; margin-bottom: 15px;">
+                Power: <strong style="color: #00ff9d;">${shareInfo.data.stats.power}%</strong> • 
+                Strikes: <strong>${shareInfo.data.stats.strikes}</strong> • 
+                Combo: <strong style="color: #ff0055;">x${shareInfo.data.stats.combo}</strong>
+            </p>
+            <div class="share-link-container">
+                <input type="text" readonly class="share-link-input" value="${shareInfo.url}" id="share-link-input">
+                <button onclick="copyShareLink()" class="copy-link-btn">📋 COPY LINK</button>
+            </div>
+            <p style="font-size: 0.9rem; color: #666; margin-top: 15px;">
+                Anyone with this link can view your highlight!
+            </p>
+        </div>
+    `;
+    
+    // Update platform buttons
+    const platformButtons = document.querySelector('.platform-buttons');
+    if (platformButtons) {
+        platformButtons.innerHTML = `
+            <button onclick="shareToInstagram()" class="platform-btn instagram">
+                📷 Instagram
+            </button>
+            <button onclick="shareToTikTok()" class="platform-btn tiktok">
+                🎵 TikTok
+            </button>
+            <button onclick="shareToTwitterWithLink()" class="platform-btn twitter">
+                🐦 Twitter
+            </button>
+            <button onclick="shareToCommunity()" class="platform-btn community">
+                🌐 Community
+            </button>
+        `;
+    }
+    
+    // Show modal
+    elements.shareModal.classList.add('active');
+}
+
+function copyShareLink() {
+    const input = document.getElementById('share-link-input');
+    if (input) {
+        input.select();
+        input.setSelectionRange(0, 99999); // For mobile devices
+        
+        try {
+            navigator.clipboard.writeText(input.value).then(() => {
+                showToast('Link copied to clipboard!');
+            }).catch(() => {
+                // Fallback for older browsers
+                document.execCommand('copy');
+                showToast('Link copied to clipboard!');
+            });
+        } catch (error) {
+            // Final fallback
+            input.select();
+            document.execCommand('copy');
+            showToast('Link copied to clipboard!');
+        }
+    }
+}
+
+function shareToTwitterWithLink() {
+    if (!APP_STATE.currentHighlight) return;
+    
+    const text = encodeURIComponent(
+        `Just scored ${APP_STATE.currentHighlight.data.stats.power}% power on @FightHypeAI! ` +
+        `${APP_STATE.currentHighlight.data.stats.strikes} strikes with ${APP_STATE.currentHighlight.data.stats.combo}x combo. ` +
+        `Check out my highlight: ${APP_STATE.currentHighlight.url} #FIGHTHYPEChallenge #BoxingTech`
+    );
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+    trackSocialShare('twitter');
+}
+
+function checkForShareLink() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#share=')) {
+        const shareId = hash.split('=')[1];
+        loadShareLink(shareId);
+    }
+}
+
+function loadShareLink(shareId) {
+    const shareData = DB.getShareLink(shareId);
+    if (shareData) {
+        // Show a view of the shared highlight
+        showSharedHighlight(shareData);
+    } else {
+        showError('Share link not found or expired');
+    }
+}
+
+function showSharedHighlight(shareData) {
+    // Create a simple view to show the shared highlight
+    const html = `
+        <div class="shared-highlight-view">
+            <div class="shared-header">
+                <h2>🥊 SHARED HIGHLIGHT</h2>
+                <p>Session: ${shareData.sessionId}</p>
+            </div>
+            <div class="shared-stats">
+                <div class="shared-stat">
+                    <span class="stat-label">POWER</span>
+                    <span class="stat-value" style="color: #00ff9d;">${shareData.stats.power}%</span>
+                </div>
+                <div class="shared-stat">
+                    <span class="stat-label">STRIKES</span>
+                    <span class="stat-value">${shareData.stats.strikes}</span>
+                </div>
+                <div class="shared-stat">
+                    <span class="stat-label">COMBO</span>
+                    <span class="stat-value" style="color: #ff0055;">x${shareData.stats.combo}</span>
+                </div>
+                <div class="shared-stat">
+                    <span class="stat-label">MODE</span>
+                    <span class="stat-value">${shareData.stats.mode.toUpperCase()}</span>
+                </div>
+            </div>
+            <div class="shared-details">
+                <p><strong>Peak Power:</strong> ${shareData.stats.peakPower}%</p>
+                <p><strong>Accuracy:</strong> ${shareData.stats.accuracy}%</p>
+                <p><strong>Strike Speed:</strong> ${shareData.stats.speed} KM/H</p>
+                <p><strong>Defense Rating:</strong> ${shareData.stats.defenseRating}%</p>
+                <p><strong>Reaction Time:</strong> ${shareData.stats.reactionTime}s</p>
+            </div>
+            <div class="shared-actions">
+                <button onclick="switchView('upload')" class="nav-btn">
+                    🥊 CREATE YOUR OWN
+                </button>
+                <button onclick="shareToCommunityFromHighlight('${shareData.id}')" class="share-btn community">
+                    🌐 SHARE TO COMMUNITY
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Create a modal or replace content to show this
+    const container = document.createElement('div');
+    container.className = 'shared-container';
+    container.innerHTML = html;
+    
+    // You could show this in a modal or replace the current view
+    document.body.appendChild(container);
+    // For now, we'll just show an alert with the stats
+    alert(`Shared Highlight:\n\nSession: ${shareData.sessionId}\nPower: ${shareData.stats.power}%\nStrikes: ${shareData.stats.strikes}\nCombo: x${shareData.stats.combo}\nMode: ${shareData.stats.mode}`);
 }
 
 // ===== COMMUNITY FEATURES =====
@@ -1002,7 +1317,12 @@ function generateHighlight() {
         // Track contest entry
         trackContestEntry();
         
-        showToast('Highlight reel downloaded! Share it with #FIGHTHYPEChallenge');
+        showToast('Highlight reel downloaded!');
+        
+        // Show share options
+        setTimeout(() => {
+            showShareOptions();
+        }, 1000);
         
     } catch (error) {
         console.error('Error generating highlight:', error);
@@ -1055,7 +1375,7 @@ function downloadImage() {
     downloadFile(dataURL, `FIGHTHYPE-Shared-${APP_STATE.sessionId}.png`);
     
     trackContestEntry();
-    showToast('Share image downloaded! Post it on social media.');
+    showToast('Share image downloaded!');
 }
 
 function addHighlightOverlay(ctx, width, height) {
@@ -1131,24 +1451,8 @@ function downloadFile(dataURL, filename) {
 
 // ===== SOCIAL SHARING =====
 function showShareOptions() {
-    // Create preview
-    elements.sharePreview.innerHTML = `
-        <div style="text-align: center; padding: 20px;">
-            <div style="font-size: 2rem; margin-bottom: 10px;">🥊</div>
-            <h3 style="margin-bottom: 10px;">Your FIGHTHYPE Highlight</h3>
-            <p style="color: #888; margin-bottom: 15px;">
-                Power: <strong style="color: #00ff9d;">${Math.round(APP_STATE.currentPower)}%</strong> • 
-                Strikes: <strong>${APP_STATE.punchCount}</strong> • 
-                Combo: <strong style="color: #ff0055;">x${APP_STATE.comboCount}</strong>
-            </p>
-            <p style="font-size: 0.9rem; color: #666;">
-                Share to enter our weekly contest!
-            </p>
-        </div>
-    `;
-    
-    // Show modal
-    elements.shareModal.classList.add('active');
+    // Use the new share link modal
+    showShareLinkModal();
 }
 
 function closeModal() {
@@ -1198,6 +1502,9 @@ function trackSocialShare(platform) {
 
 // ===== APP CONTROLS =====
 function resetApp() {
+    // Clear any errors
+    clearError();
+    
     // Reset error flag
     APP_STATE.videoErrorOccurred = false;
     
@@ -1269,7 +1576,7 @@ window.addEventListener('offline', () => {
 // ===== PWA SUPPORT =====
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(error => {
+        navigator.serviceWorker.register('sw.js').catch(error => {
             console.log('ServiceWorker registration failed:', error);
         });
     });
